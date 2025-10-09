@@ -1,10 +1,11 @@
 #!/bin/bash
 
+# Path to your CSV file
 CSV_FILE="branches.csv"
 
 # Loop through each branch in the CSV (skip header)
 tail -n +2 "$CSV_FILE" | while IFS=, read -r branch; do
-    branch=$(echo "$branch" | tr -d '\r' | xargs)  # Trim whitespace and carriage returns
+    branch=$(echo "$branch" | tr -d '\r' | xargs)  # Clean up whitespace and carriage returns
     if [ -z "$branch" ]; then
         echo "Skipping empty line"
         continue
@@ -18,8 +19,18 @@ tail -n +2 "$CSV_FILE" | while IFS=, read -r branch; do
         continue
     }
 
-    # Create a tag before deletion
+    # Create a tag name
     tag_name="backup-${branch//\//-}-$(date +%Y%m%d)"
+
+    # Switch to main before deleting the branch
+    git checkout main
+    git worktree prune  # Detach any worktree links
+
+    # Delete tag if it already exists
+    git tag -d "$tag_name" 2>/dev/null
+    git push origin --delete "$tag_name" 2>/dev/null
+
+    # Create and push new tag
     git tag "$tag_name"
     git push origin "$tag_name"
     echo "Tag $tag_name created and pushed."
