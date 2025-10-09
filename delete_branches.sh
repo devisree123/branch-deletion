@@ -24,11 +24,20 @@ tail -n +2 "$CSV_FILE" | while IFS=, read -r branch; do
 
     # Switch to main before deleting the branch
     git checkout main
-    git worktree prune  # Detach any worktree links
+    git worktree prune  # Clean up stale worktrees
+
+    # Remove worktree if the branch is still in use
+    if git worktree list | grep -q "$branch"; then
+        echo "Branch $branch is used in a worktree. Removing associated worktree..."
+        worktree_path=$(git worktree list | grep "$branch" | awk '{print $1}')
+        git worktree remove --force "$worktree_path"
+    fi
 
     # Delete tag if it already exists
-    git tag -d "$tag_name" 2>/dev/null
-    git push origin --delete "$tag_name" 2>/dev/null
+    if git tag | grep -q "$tag_name"; then
+        git tag -d "$tag_name"
+        git push origin --delete "$tag_name"
+    fi
 
     # Create and push new tag
     git tag "$tag_name"
@@ -36,12 +45,10 @@ tail -n +2 "$CSV_FILE" | while IFS=, read -r branch; do
     echo "Tag $tag_name created and pushed."
 
     # Delete branch locally
-    git branch -D "$branch"
-    echo "Deleted local branch: $branch"
+    git branch -D "$branch" && echo "Deleted local branch: $branch"
 
     # Delete branch remotely
-    git push origin --delete "$branch"
-    echo "Deleted remote branch: $branch"
+    git push origin --delete "$branch" && echo "Deleted remote branch: $branch"
 done
 
 # Checkout back to main
